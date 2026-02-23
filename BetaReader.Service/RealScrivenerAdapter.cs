@@ -12,18 +12,24 @@ namespace BetaReader.Service
 
             var xml = XDocument.Load(scrivxPath);
 
-            var binder = xml.Root!
+            var binderItems = xml.Root!
                 .Element("Binder")!
                 .Elements("BinderItem")
                 .Select(ParseBinderItem)
                 .ToList();
 
-            return binder;
+            var manuscript = binderItems.SingleOrDefault(x => x.Title == "Manuscript");
+
+            if (manuscript is null)
+                throw new InvalidOperationException("Scrivener project has no Manuscript root.");
+
+            return [manuscript];
         }
 
         private static ScrivenerDocument ParseBinderItem(XElement element)
         {
-            var id = element.Attribute("UUID")!.Value;
+            var id = element.Attribute("UUID")?.Value
+                ?? throw new InvalidOperationException("BinderItem missing UUID attribute.");
 
             var title = element.Element("Title")?.Value ?? "(Untitled)";
 
