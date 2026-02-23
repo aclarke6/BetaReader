@@ -42,7 +42,31 @@ namespace BetaReader.Service
         }
 
         public Snapshot? GetLatestSnapshot(string vaultPath, string scrivenerId)
-            => throw new NotImplementedException();
+        {
+            // scrivenerId is the BinderItem UUID
+            var contentPath = Path.Combine(
+                vaultPath,
+                "Files",
+                "Data",
+                scrivenerId,
+                "content.rtf");
+
+            if (!File.Exists(contentPath))
+                return null;
+
+            var rtf = File.ReadAllText(contentPath);
+
+            // v1: deterministic snapshot id until we parse real Scrivener snapshots
+            var snapshotId = $"content-{scrivenerId}";
+
+            var timestampUtc = File.GetLastWriteTimeUtc(contentPath);
+
+            return new Snapshot(
+                documentId: scrivenerId,
+                snapshotId: snapshotId,
+                timestampUtc: timestampUtc,
+                rtfContent: rtf);
+        }
 
         public bool IsEligible(string vaultPath, string scrivenerId)
             => throw new NotImplementedException();
