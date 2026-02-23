@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Copy-SourceFiles.ps1" />
+    <File Path="Design.rtf" />
+    <File Path="Get-CodeFiles.ps1" />
+    <File Path="Plan.rtf" />
+    <File Path="Show-ProjectTree.ps1" />
+  </Folder>
+  <Project Path="BetaReader.Core/BetaReader.Core.csproj" />
+  <Project Path="Betareader.Interfaces/Betareader.Interfaces.csproj" />
+  <Project Path="BetaReader.Service/BetaReader.Service.csproj" />
+  <Project Path="BetaReader.Tests/BetaReader.Tests.csproj" />
+  <Project Path="BetaReader.WPF/BetaReader.WPF.csproj" />
+</Solution>

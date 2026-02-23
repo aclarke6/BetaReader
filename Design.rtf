@@ -1,0 +1,349 @@
+## 1. Purpose
+
+**Purpose:**  
+Design a system that allows beta readers to read approved manuscript content via a web portal and leave structured feedback, while a Windows service synchronises that feedback into the author’s Scrivener project in a safe, controlled, and test‑driven way.
+
+**Core goals:**
+
+- **Author control:** Only content explicitly marked ready (via Status and snapshot) is exposed.
+- **Fidelity:** Beta readers read formatted text that reflects the manuscript structure.
+- **Structured feedback:** Comments, types, and threads flow back into Scrivener as notes.
+- **Author awareness:** Windows notifications surface new comments and updates.
+- **Robust engineering:** TDD, Git, and a WPF console underpin development and diagnostics.
+- **Future‑proofing:** Core logic and interfaces are platform‑agnostic, enabling later macOS support.
+
+---
+
+## 2. Scope
+
+### 2.1 In scope
+
+**Web Platform (Beta Reader Website):**
+
+- **Authentication:** Beta reader login.
+- **Navigation:** Browse manuscript hierarchy (Book → Part → Chapter → Scene, or arbitrary Scrivener structure).
+- **Reading:** View latest published snapshot for each eligible document.
+- **Commenting:**
+  - Create comments on scenes.
+  - Optional comment threading (reader comment + author reply).
+  - Comment severity/type (Typo, Clarity, Pacing, Character, Plot, Worldbuilding, Other).
+- **Reader state:**
+  - Track last scene read per reader.
+  - Expose “percentage read” via service API.
+  - Mark scenes as “updated” when a new snapshot is published after the reader last viewed them.
+
+**Desktop Sync Service (Windows‑only host, cross‑platform‑ready core):**
+
+- **Vault management:**
+  - Attach/detach Scrivener vaults (projects).
+  - Support multiple vaults simultaneously.
+- **Polling:**
+  - Poll each attached vault at a fixed interval (e.g. 30–60 seconds).
+  - Detect eligible documents (Status ≥ First Draft, has snapshot).
+  - Export latest snapshots and publish to the website.
+- **Comment sync:**
+  - Poll website for new comments and replies.
+  - Write comments into Scrivener as notes, including severity/type.
+  - Track imported comments and acknowledgement state.
+- **Reader progress:**
+  - Retrieve last read scene per reader.
+  - Calculate percentage read based on binder order.
+- **Scene updates:**
+  - Detect when a new snapshot is published for a scene a reader has already read.
+  - Expose “updated” flags to the website.
+- **Notifications:**
+  - Windows 11 notifications for new comments.
+  - Show reader name, hierarchy path, full comment, timestamp.
+  - Actions: “Acknowledge”, “Open in Scrivener”.
+- **Scrivener integration:**
+  - Open or switch to Scrivener.
+  - Navigate to the correct document.
+  - (Optional later) Scroll to approximate location if location metadata exists.
+
+**WPF Front‑End (Development & Diagnostics Console):**
+
+- **Vault control:**
+  - Attach/detach vaults.
+  - View vault list and status.
+- **Monitoring:**
+  - Show last poll time per vault.
+  - Show number of eligible documents.
+  - Show pending/unacknowledged comments.
+- **Manual control:**
+  - Trigger manual sync.
+  - Inspect raw data (for development/testing).
+- **Visual testing:**
+  - Validate service behaviour during development.
+  - Not required for runtime operation.
+
+**Development methodology & safety:**
+
+- **TDD:** All core logic and service behaviour developed test‑first.
+- **Git:** All source controlled in Git with branching strategy (e.g. main/develop/feature branches).
+
+### 2.2 Out of scope (initial release)
+
+- Real‑time collaborative editing.
+- Rich‑text comments.
+- Mobile apps.
+- Full prose diff highlighting (only flagged as “updated” in v1).
+- Advanced analytics and dashboards.
+- Logging beyond basic diagnostics (to be added later via `ILogger`).
+
+---
+
+## 3. Stakeholders and roles
+
+**Stakeholders:**
+
+- **Author:** Owns the manuscript, controls publication, consumes feedback.
+- **Beta readers:** Provide structured feedback via the website.
+- **System administrator:** Manages hosting, configuration, and security.
+- **Development team:** Implements TDD, maintains architecture, uses WPF console.
+
+**Roles:**
+
+- **Author (local, Windows):**
+  - Works in Scrivener.
+  - Sets Status and creates snapshots.
+  - Attaches/detaches vaults via WPF console.
+  - Receives Windows notifications.
+  - Acknowledges comments.
+- **Beta reader (web):**
+  - Logs in.
+  - Reads scenes.
+  - Leaves comments and sees replies.
+  - Sees when scenes they’ve read are updated.
+- **Admin (web):**
+  - Manages accounts and project access.
+- **Developer (internal):**
+  - Uses WPF console for visual testing and diagnostics.
+
+---
+
+## 4. High‑level architecture
+
+### 4.1 Solution structure
+
+- **BetaReader.Core**  
+  Platform‑agnostic domain logic and business rules.
+
+- **BetaReader.Interfaces**  
+  Platform‑agnostic contracts:
+  - `IScrivenerAdapter`
+  - `INotificationService`
+  - `IWebsiteApi`
+  - `IFileSystem`
+  - `IProcessController`
+  - `ILogger` (for later logging)
+
+- **BetaReader.Tests**  
+  TDD test suite (unit, integration, service behaviour).
+
+- **BetaReader.Service**  
+  Platform‑agnostic service logic:
+  - Vault registry and attach/detach.
+  - Polling loop.
+  - Sync orchestration.
+  - Comment and progress handling.
+
+- **BetaReader.Service.Windows**  
+  Windows‑specific host:
+  - Windows Service wrapper.
+  - Windows notifications.
+  - Windows Scrivener automation.
+  - Windows file system and process control.
+
+- **BetaReader.Wpf**  
+  Windows‑only development/diagnostic console:
+  - Uses Core + Service + Interfaces.
+  - No platform‑specific logic beyond UI.
+
+- **BetaReader.Website**  
+  Cloud‑hosted web portal and API:
+  - Beta reader UI.
+  - REST API for service (content upload, comments, progress, updates).
+
+### 4.2 One‑way data flow
+
+- **Scrivener → Service → Website → Service → Scrivener**
+
+No other direction is allowed.  
+Website never writes directly to Scrivener; Scrivener never pulls from the website.
+
+---
+
+## 5. Functional requirements
+
+### 5.1 Manuscript structure & publication
+
+- **FR‑1:** Reflect Scrivener Binder hierarchy exactly in the website.
+- **FR‑2:** A document is eligible for publication if:
+  - Status is “First Draft” or later (configurable threshold).
+  - It has at least one snapshot.
+- **FR‑3:** Only the latest snapshot per eligible document is published.
+- **FR‑4:** Service polls each attached vault at a fixed interval (e.g. 30–60 seconds) to:
+  - Detect eligible documents.
+  - Export latest snapshots.
+  - Upload them to the website.
+
+### 5.2 Reading experience
+
+- **FR‑5:** Website renders formatted content derived from RTF (or equivalent).
+- **FR‑6:** Basic formatting (paragraphs, italics, headings) is preserved.
+- **FR‑7:** Beta readers can see their own comments in context while reading.
+
+### 5.3 Commenting & threading
+
+- **FR‑8:** Beta readers can create comments on a specific scene/document.
+- **FR‑9:** Comments may optionally include a location reference (paragraph/offset).
+- **FR‑10:** Comment severity/type is captured (Typo, Clarity, Pacing, Character, Plot, Worldbuilding, Other).
+- **FR‑11:** Comment threading:
+  - A comment may have a single level of replies (e.g. author response).
+  - Threads are displayed grouped in the UI.
+- **FR‑12:** Comments are stored with:
+  - Document ID.
+  - User ID.
+  - Timestamp.
+  - Type.
+  - ParentCommentId (for threading).
+  - Acknowledgement status.
+
+### 5.4 Comment synchronisation to Scrivener
+
+- **FR‑13:** Service polls website for new comments and replies.
+- **FR‑14:** For each new comment:
+  - Map website document ID to Scrivener document.
+  - Create a note/annotation in Scrivener with:
+    - Comment text.
+    - Severity/type.
+    - Reader identity (as appropriate).
+- **FR‑15:** Service tracks imported comments to avoid duplication.
+- **FR‑16:** Service updates comment status on the website to indicate:
+  - Imported into Scrivener.
+  - Acknowledged (when applicable).
+
+### 5.5 Author acknowledgement & notifications
+
+- **FR‑17:** When a new comment arrives, the Windows host shows a Windows 11 notification including:
+  - Reader name.
+  - Book/Part/Chapter/Scene path.
+  - Full comment text.
+  - Timestamp.
+- **FR‑18:** Notifications remain visible in the notification centre until acknowledged.
+- **FR‑19:** Notification actions:
+  - **Acknowledge:** Marks comment as acknowledged locally and on the website; removes it from the unacknowledged list.
+  - **Open in Scrivener:** Opens or switches to Scrivener and navigates to the relevant document.
+- **FR‑20:** Acknowledgement is a one‑way action; comments cannot revert to “pending”.
+
+### 5.6 Scrivener integration (Windows)
+
+- **FR‑21:** Service detects whether Scrivener is running.
+- **FR‑22:** If not running, service launches Scrivener with the correct project.
+- **FR‑23:** If running, service brings Scrivener to the foreground.
+- **FR‑24:** Service navigates to the correct Binder document using:
+  - UI Automation and/or
+  - Supported Scrivener command‑line options (if available).
+- **FR‑25:** (Optional later) Service may attempt to scroll to approximate location based on stored offsets.
+
+### 5.7 Vault management (attach/detach, multi‑vault)
+
+- **FR‑26:** Service supports attaching Scrivener vaults by path:
+  - Validates project.
+  - Reads metadata.
+  - Registers vault in a persistent registry.
+- **FR‑27:** Service supports detaching vaults:
+  - Stops monitoring.
+  - Removes from registry.
+- **FR‑28:** Service supports multiple attached vaults simultaneously.
+- **FR‑29:** WPF console shows:
+  - List of attached vaults.
+  - Status per vault (last poll, last export, pending comments).
+
+### 5.8 Reader progress & scene updates
+
+- **FR‑30:** Website tracks last scene read per reader.
+- **FR‑31:** Service retrieves this via API and calculates percentage read based on binder order.
+- **FR‑32:** When a new snapshot is published for a scene:
+  - If a reader has previously read an older snapshot, mark that scene as “updated” for that reader.
+- **FR‑33:** Website UI indicates updated scenes clearly (badge/flag).
+- **FR‑34:** (Optional later) Website may highlight changed prose using diffing.
+
+---
+
+## 6. Non‑functional requirements
+
+- **NFR‑1 Security:**
+  - All communication uses HTTPS.
+  - Website requires authenticated access.
+  - Service authenticates to website via API keys/tokens.
+- **NFR‑2 Performance:**
+  - Polling interval is configurable (e.g. 30–60 seconds).
+  - Page loads and comment submissions are responsive for typical chapter sizes.
+- **NFR‑3 Reliability:**
+  - Polling and sync operations are idempotent.
+  - Network failures are handled gracefully with retries.
+- **NFR‑4 Usability:**
+  - Website is simple and focused on reading and commenting.
+  - WPF console is clear and diagnostic‑oriented.
+- **NFR‑5 Portability:**
+  - Core and Interfaces are platform‑agnostic.
+  - Service logic is platform‑agnostic.
+  - Only `BetaReader.Service.Windows` and `BetaReader.Wpf` are Windows‑specific.
+- **NFR‑6 Logging (later):**
+  - `ILogger` interface exists now.
+  - Concrete logging implementation added once core behaviour stabilises.
+
+---
+
+## 7. Development methodology
+
+### 7.1 Test‑Driven Development (TDD)
+
+- **TDD‑1:** All core and service logic is developed test‑first.
+- **TDD‑2:** Tests cover:
+  - Domain rules (eligibility, snapshots, comments, updates).
+  - Sync orchestration.
+  - Vault attach/detach.
+  - Percentage read calculations.
+  - Comment threading and severity.
+- **TDD‑3:** A feature is complete only when:
+  - Tests exist and pass.
+  - Behaviour matches this design document.
+
+### 7.2 Git usage
+
+- **GIT‑1:** All code is stored in Git.
+- **GIT‑2:** Branching model:
+  - `main` – stable releases.
+  - `develop` – integration branch.
+  - Feature branches – per feature or change.
+- **GIT‑3:** Tags for releases and significant milestones.
+
+---
+
+## 8. Key architectural decisions
+
+- **AD‑1:** Windows‑first implementation, with platform‑agnostic Core and Interfaces to allow future macOS hosts.
+- **AD‑2:** One‑way data flow: Scrivener → Service → Website → Service → Scrivener.
+- **AD‑3:** Polling (30–60 seconds) instead of file monitoring:
+  - The delay is intentional and beneficial: stable, deterministic, cross‑platform‑ready.
+- **AD‑4:** Snapshots are treated as immutable; new changes require new snapshots.
+- **AD‑5:** Scrivener internal IDs are the canonical document identifiers.
+- **AD‑6:** Service is stateless apart from:
+  - Vault registry.
+  - Sync metadata.
+  - Comment acknowledgement state.
+- **AD‑7:** All platform‑specific behaviour (notifications, Scrivener automation, process control) is behind interfaces and implemented only in `BetaReader.Service.Windows`.
+- **AD‑8:** WPF console is a development/diagnostic tool, not a runtime dependency.
+
+---
+
+## 9. Optional future enhancements
+
+- Prose diffing and inline highlighting of changed text.
+- Advanced reporting (per‑chapter comment summaries, export to PDF/CSV).
+- More granular reader permissions (per‑reader visibility of specific parts).
+- Richer analytics (engagement over time, heatmaps of comment density).
+- macOS host (`BetaReader.Service.Mac`) using the same Core and Interfaces.
+
