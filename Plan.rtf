@@ -1,0 +1,189 @@
+
+# High‑Level Project Plan  
+**Goal:** Earliest possible working website that can display vaults and published documents, with comments and advanced features added later.
+
+---
+
+# Phase 0 — Foundations (1–2 weeks)
+
+### 0.1 Repository & solution setup
+- Create Git repo with `main` and `develop`.
+- Add solution structure:
+  - `BetaReader.Core`
+  - `BetaReader.Interfaces`
+  - `BetaReader.Tests`
+  - `BetaReader.Service`
+  - `BetaReader.Service.Windows`
+  - `BetaReader.Wpf`
+  - `BetaReader.Website`
+
+### 0.2 Core abstractions (TDD)
+Define the minimal interfaces needed for the first vertical slice:
+- `IScrivenerAdapter`
+- `IWebsiteApi`
+- `IFileSystem`
+- `IVaultRegistry`
+- `ILogger` (stub)
+- Domain models: `Vault`, `ScrivenerDocument`, `Snapshot`, `PublishedScene`.
+
+### 0.3 Minimal website skeleton
+- Authentication stub (simple login).
+- Project list page.
+- Document list page.
+- Document viewer page (static placeholder).
+
+This gives you a running website before any real data flows.
+
+---
+
+# Phase 1 — First Vertical Slice: Publish snapshots to website (2–3 weeks)
+
+**Objective:**  
+A beta reader can log in, see a vault, browse its hierarchy, and read published documents.  
+**No comments yet.**
+
+### 1.1 Scrivener → Service snapshot export (Core + Tests)
+- Implement eligibility rules (Status threshold + snapshot existence).
+- Implement snapshot extraction (fake adapter in tests).
+- Implement binder hierarchy mapping.
+- TDD:  
+  - “Given eligible docs, service exports latest snapshots.”
+
+### 1.2 Service → Website upload
+- Define minimal REST endpoints:
+  - `POST /vaults/{id}/documents`
+  - `POST /vaults/{id}/snapshots`
+- Implement `IWebsiteApi` stub + tests.
+- Implement sync orchestration (polling loop, idempotency).
+
+### 1.3 Website: real document viewer
+- Render uploaded RTF → HTML.
+- Show binder hierarchy.
+- Show latest snapshot only.
+
+### 1.4 WPF console: vault attach/detach (minimal)
+- Attach vault by path.
+- Show vault list.
+- Show last poll time.
+
+**Deliverable:**  
+A working system where you attach a vault, snapshots are published, and the website displays them cleanly.
+
+This is your first “demoable” milestone.
+
+---
+
+# Phase 2 — Reader progress & updated‑scene flags (1–2 weeks)
+
+**Objective:**  
+Readers can read scenes, and the system tracks what they’ve read.
+
+### 2.1 Website
+- Track last read scene per reader.
+- Mark scenes as read.
+- Expose “percentage read”.
+
+### 2.2 Service
+- Fetch reader progress.
+- Calculate percentage read based on binder order.
+- Detect when a new snapshot supersedes what a reader has read.
+- Mark scenes as “updated”.
+
+### 2.3 UI
+- Show “updated” badges.
+
+This gives beta readers a sense of progression and keeps the author aware of what’s been consumed.
+
+---
+
+# Phase 3 — Commenting (Website only) (2–3 weeks)
+
+**Objective:**  
+Add commenting to the website, but **do not sync to Scrivener yet**.
+
+### 3.1 Website
+- Add comment model.
+- Add comment creation UI.
+- Add comment threading (one level).
+- Store severity/type.
+- Display comments in context.
+
+### 3.2 API
+- `POST /comments`
+- `GET /documents/{id}/comments`
+
+### 3.3 No service integration yet
+- Service ignores comments for now.
+
+This gives beta readers a functional feedback tool while keeping the service untouched.
+
+---
+
+# Phase 4 — Comment sync to Scrivener (3–4 weeks)
+
+**Objective:**  
+Complete the one‑way loop: Website → Service → Scrivener.
+
+### 4.1 Service
+- Poll website for new comments.
+- Map website document IDs to Scrivener IDs.
+- Write comments into Scrivener as notes.
+- Track imported comments to avoid duplication.
+- Update website comment status (imported/acknowledged).
+
+### 4.2 Windows notifications
+- Show toast notifications for new comments.
+- Actions: Acknowledge, Open in Scrivener.
+
+### 4.3 Scrivener automation
+- Detect running instance.
+- Launch if needed.
+- Navigate to correct document.
+
+This is the second major “demoable” milestone: full feedback loop.
+
+---
+
+# Phase 5 — Refinement & WPF diagnostics (2–3 weeks)
+
+### 5.1 WPF console enhancements
+- Show pending comments.
+- Show number of eligible documents.
+- Trigger manual sync.
+- Inspect raw data.
+
+### 5.2 Website polish
+- Better formatting.
+- Improved navigation.
+- Reader UX refinements.
+
+### 5.3 Service hardening
+- Retry logic.
+- Idempotency tests.
+- Sync metadata persistence.
+
+---
+
+# Phase 6 — Optional enhancements (ongoing)
+
+- Diffing.
+- Analytics.
+- Richer comment UI.
+- macOS host.
+- Logging infrastructure.
+
+---
+
+# Summary Timeline (approximate)
+
+| Phase | Deliverable | Duration |
+|------|-------------|----------|
+| 0 | Foundations + skeleton website | 1–2 weeks |
+| 1 | First vertical slice: publish & read | 2–3 weeks |
+| 2 | Reader progress + updated flags | 1–2 weeks |
+| 3 | Website commenting | 2–3 weeks |
+| 4 | Comment sync + notifications | 3–4 weeks |
+| 5 | Diagnostics + polish | 2–3 weeks |
+
+Total initial release: **~10–15 weeks**, depending on pace and depth of testing.
+
