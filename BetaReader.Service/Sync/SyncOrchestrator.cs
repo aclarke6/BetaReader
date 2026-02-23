@@ -53,7 +53,7 @@ public sealed class SyncOrchestrator
         await _website.PublishDocumentsAsync(vault.Id, scenes, ct);
     }
 
-    private static IEnumerable<ScrivenerDocument> Flatten(IEnumerable<ScrivenerDocument> docs)
+    internal static IEnumerable<ScrivenerDocument> Flatten(IEnumerable<ScrivenerDocument> docs)
     {
         foreach (var d in docs)
         {

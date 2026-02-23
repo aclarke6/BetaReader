@@ -2,11 +2,15 @@
 
 public sealed class Snapshot
 {
-    public string ScrivenerId
+    public string DocumentId
     {
         get;
     }
-    public DateTime Timestamp
+    public string SnapshotId
+    {
+        get;
+    }
+    public DateTime TimestampUtc
     {
         get;
     }
@@ -15,10 +19,11 @@ public sealed class Snapshot
         get;
     }
 
-    public Snapshot(string scrivenerId, DateTime timestamp, string rtfContent)
+    public Snapshot(string documentId, string snapshotId, DateTime timestampUtc, string rtfContent)
     {
-        ScrivenerId = scrivenerId;
-        Timestamp = timestamp;
+        DocumentId = documentId;
+        SnapshotId = snapshotId;
+        TimestampUtc = timestampUtc;
         RtfContent = rtfContent;
     }
 }

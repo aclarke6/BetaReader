@@ -24,7 +24,7 @@ namespace BetaReader.Tests
             scrivener.Setup(s => s.GetBinderHierarchy(vault.Path)).Returns(new[] { doc });
             scrivener.Setup(s => s.IsEligible(vault.Path, "1")).Returns(true);
             scrivener.Setup(s => s.GetLatestSnapshot(vault.Path, "1"))
-                     .Returns(new Snapshot("1", DateTime.UtcNow, "{\\rtf1 test}"));
+                     .Returns(new Snapshot("1", "snap-1", DateTime.UtcNow, "{\\rtf1 test}"));
 
             var orchestrator = new SyncOrchestrator(scrivener.Object, website.Object, vaults.Object, log.Object);
 
