@@ -69,6 +69,28 @@ namespace BetaReader.Service
         }
 
         public bool IsEligible(string vaultPath, string scrivenerId)
-            => throw new NotImplementedException();
+        {
+            var scrivxPath = Directory.GetFiles(vaultPath, "*.scrivx").Single();
+            var xml = XDocument.Load(scrivxPath);
+
+            var binder = xml.Root?.Element("Binder");
+            if (binder is null)
+                return false;
+
+            var item = binder
+                .Descendants("BinderItem")
+                .SingleOrDefault(x =>
+                    string.Equals((string?) x.Attribute("UUID"), scrivenerId, StringComparison.OrdinalIgnoreCase));
+
+            if (item is null)
+                return false;
+
+            var statusText = item.Element("MetaData")?.Element("StatusID")?.Value;
+            if (!int.TryParse(statusText, out var statusId))
+                return false;
+
+            // Publishable statuses only (In Progress is NOT publishable)
+            return statusId is 2 or 3 or 4 or 5;
+        }
     }
 }
